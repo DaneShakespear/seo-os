@@ -3,7 +3,7 @@ set -euo pipefail
 
 SLUGS=(
   april-wray
-  # luxury-limousines is quarantined pending clean Lux intake
+  luxury-limousines
   kre8-media
   tsb-podiatry
 )
