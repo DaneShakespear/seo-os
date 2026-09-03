@@ -166,41 +166,34 @@ def call(
     }
 
     data = _post_with_retry(url, body, headers, timeout=timeout, max_retries=max_retries, label=label)
+    task_retry = 0
+    while _has_retryable_task_error(data) and task_retry < max_retries:
+        if save_to is not None:
+            retry_path = Path(save_to)
+            retry_path = retry_path.with_name(
+                f"{retry_path.stem}.attempt-{task_retry + 1}{retry_path.suffix}"
+            )
+            _save_response_and_receipt(data, payload, endpoint, label, retry_path)
+        delay = DEFAULT_BACKOFF_BASE * (2 ** task_retry)
+        print(
+            f"[dfs] {label}: transient task failure; retrying in {delay:.0f}s",
+            file=sys.stderr,
+        )
+        time.sleep(delay)
+        task_retry += 1
+        data = _post_with_retry(
+            url,
+            body,
+            headers,
+            timeout=timeout,
+            max_retries=max_retries,
+            label=label,
+        )
 
     # Save raw response immediately — even if a cap or status check fails next,
     # the operator needs the audit trail.
     if save_to is not None:
-        save_path = Path(save_to)
-        response_text = json.dumps(data, indent=2) + "\n"
-        write_private_text(save_path, response_text)
-        request_text = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        receipt = {
-            "schema_version": "seo-office.dataforseo-receipt.v1",
-            "provider": "DataForSEO",
-            "endpoint": endpoint,
-            "label": label,
-            "retrieved_at": datetime.now(timezone.utc).isoformat(),
-            "request": payload,
-            "request_sha256": hashlib.sha256(request_text.encode("utf-8")).hexdigest(),
-            "response_path": save_path.name,
-            "response_sha256": hashlib.sha256(response_text.encode("utf-8")).hexdigest(),
-            "status_code": data.get("status_code"),
-            "status_message": data.get("status_message"),
-            "cost_usd": _reported_cost(data),
-            "task_statuses": [
-                {
-                    "id": task.get("id"),
-                    "status_code": task.get("status_code"),
-                    "status_message": task.get("status_message"),
-                    "cost_usd": float(task.get("cost") or 0.0),
-                }
-                for task in (data.get("tasks") or [])
-            ],
-        }
-        write_private_text(
-            save_path.with_suffix(save_path.suffix + ".meta.json"),
-            json.dumps(receipt, indent=2) + "\n",
-        )
+        _save_response_and_receipt(data, payload, endpoint, label, Path(save_to))
 
     # API-level error check.
     api_status = data.get("status_code")
@@ -248,6 +241,52 @@ def call(
 
 
 # Internals -------------------------------------------------------------------
+def _has_retryable_task_error(data: dict[str, Any]) -> bool:
+    return any(
+        int(task.get("status_code") or 0) == 40101
+        for task in (data.get("tasks") or [])
+    )
+
+
+def _save_response_and_receipt(
+    data: dict[str, Any],
+    payload: list[dict[str, Any]],
+    endpoint: str,
+    label: str,
+    save_path: Path,
+) -> None:
+    response_text = json.dumps(data, indent=2) + "\n"
+    write_private_text(save_path, response_text)
+    request_text = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    receipt = {
+        "schema_version": "seo-office.dataforseo-receipt.v1",
+        "provider": "DataForSEO",
+        "endpoint": endpoint,
+        "label": label,
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "request": payload,
+        "request_sha256": hashlib.sha256(request_text.encode("utf-8")).hexdigest(),
+        "response_path": save_path.name,
+        "response_sha256": hashlib.sha256(response_text.encode("utf-8")).hexdigest(),
+        "status_code": data.get("status_code"),
+        "status_message": data.get("status_message"),
+        "cost_usd": _reported_cost(data),
+        "task_statuses": [
+            {
+                "id": task.get("id"),
+                "status_code": task.get("status_code"),
+                "status_message": task.get("status_message"),
+                "cost_usd": float(task.get("cost") or 0.0),
+            }
+            for task in (data.get("tasks") or [])
+        ],
+    }
+    write_private_text(
+        save_path.with_suffix(save_path.suffix + ".meta.json"),
+        json.dumps(receipt, indent=2) + "\n",
+    )
+
+
 def _read_credentials() -> tuple[str, str]:
     login = os.environ.get("DATAFORSEO_LOGIN")
     password = os.environ.get("DATAFORSEO_PASSWORD")

@@ -86,6 +86,47 @@ class DataForSEOReceiptTest(unittest.TestCase):
             self.assertTrue(raw_path.exists())
             self.assertTrue(raw_path.with_suffix(".json.meta.json").exists())
 
+    def test_transient_task_status_is_retried_and_retained(self) -> None:
+        failed = {
+            "status_code": 20000,
+            "status_message": "Ok.",
+            "tasks": [{
+                "id": "task-1",
+                "status_code": 40101,
+                "status_message": "Internal SE Server Error.",
+                "cost": 0,
+            }],
+        }
+        succeeded = {
+            "status_code": 20000,
+            "status_message": "Ok.",
+            "tasks": [{
+                "id": "task-2",
+                "status_code": 20000,
+                "status_message": "Ok.",
+                "cost": 0.002,
+                "result": [],
+            }],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            raw_path = Path(tmp) / "serp.json"
+            with patch.dict(os.environ, {
+                "DATAFORSEO_LOGIN": "test-login",
+                "DATAFORSEO_PASSWORD": "test-password",
+            }), patch.object(
+                dfs, "_post_with_retry", side_effect=[failed, succeeded]
+            ) as post, patch.object(dfs.time, "sleep"):
+                dfs.reset_total()
+                result = dfs.call(
+                    "/v3/test", [{}], "test", raw_path, max_retries=1
+                )
+
+            self.assertEqual(result, succeeded)
+            self.assertEqual(post.call_count, 2)
+            self.assertTrue(Path(tmp, "serp.attempt-1.json").exists())
+            self.assertTrue(Path(tmp, "serp.attempt-1.json.meta.json").exists())
+            self.assertTrue(raw_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
