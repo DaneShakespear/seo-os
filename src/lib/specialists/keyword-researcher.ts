@@ -239,7 +239,11 @@ const keywordResearcher: Specialist<Input> = {
         ? eligibleVerifiedRows.map((keyword) => ({
             keyword: keyword.keyword,
             volume: keyword.search_volume,
-            intent: keyword.intent ?? "informational",
+            intent: normalizeKeywordIntent(
+              keyword.keyword,
+              keyword.intent ?? "informational",
+              manifest.site_brand,
+            ),
             url:
               normalizeOwnedUrl(keyword.our_url, manifest.site_under_audit) ??
               assignKeywordUrl(keyword.keyword, candidateUrls, approvedMap.mappings),
@@ -250,7 +254,11 @@ const keywordResearcher: Specialist<Input> = {
           .map((keyword) => ({
             keyword: keyword.keyword,
             volume: keyword.volume,
-            intent: keyword.intent ?? "informational",
+            intent: normalizeKeywordIntent(
+              keyword.keyword,
+              keyword.intent ?? "informational",
+              manifest.site_brand,
+            ),
             url: assignKeywordUrl(keyword.keyword, candidateUrls, approvedMap.mappings),
           })) ?? [];
     const keywordRows = assignments.map(
@@ -565,6 +573,22 @@ function loadApprovedKeywordMap(clientSlug: string): ApprovedKeywordMap {
   } catch {
     return { mappings: [], exclusions: [] };
   }
+}
+
+function normalizeKeywordIntent(
+  keyword: string,
+  intent: string,
+  siteBrand?: string,
+): string {
+  if (intent.toLowerCase() !== "navigational") return intent;
+  const normalizedKeyword = keyword.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const normalizedBrand = (siteBrand ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  return normalizedBrand && normalizedKeyword.includes(normalizedBrand)
+    ? intent
+    : "commercial";
 }
 
 function normalizeOwnedUrl(value: string | null | undefined, siteUrl: string): string | null {
