@@ -92,6 +92,7 @@ export async function rebuildOverview(
       const parsed = matter(existing || "---\n---\n");
       const today = new Date().toISOString().slice(0, 10);
       const fm = {
+        ...parsed.data,
         brain_schema: "marketing-brain.v1",
         type: "overview",
         title: "Overview",
@@ -104,7 +105,6 @@ export async function rebuildOverview(
         rollback_note:
           "Derived from .raw/.manifest.json. Rebuild overview.md from the manifest to roll back manual edits.",
         risk_level: "low",
-        ...parsed.data,
         updated: today,
       };
       const body = renderOverview(manifest);

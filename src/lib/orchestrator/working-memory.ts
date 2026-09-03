@@ -122,7 +122,7 @@ async function doWriteHot(
     status: "active",
     created: parsed.data.created ?? today,
     owner: parsed.data.owner ?? "orchestrator",
-    confidence: parsed.data.confidence ?? "high",
+    confidence: "medium",
     approval_status: parsed.data.approval_status ?? "approved",
     rollback_note:
       parsed.data.rollback_note ??
