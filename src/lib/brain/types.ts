@@ -284,6 +284,7 @@ export type ManifestSource = z.infer<typeof ManifestSource>;
  */
 export const ClientLocale = z.object({
   code: z.string().optional(),
+  location_code: z.number().int().positive().optional(),
   location_name: z.string().optional(),
   language_name: z.string().optional(),
   site_url: z.string().url().optional(),

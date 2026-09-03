@@ -11,11 +11,13 @@ import "server-only";
 import type { ClientManifest } from "@/lib/brain/types";
 
 export interface ResolvedLocale {
+  location_code?: number;
   location_name: string;
   language_name: string;
 }
 
 export interface LocaleOverride {
+  location_code?: number;
   location_name?: string;
   language_name?: string;
 }
@@ -25,6 +27,7 @@ export function resolveLocale(
   override?: LocaleOverride,
 ): ResolvedLocale {
   return {
+    location_code: override?.location_code ?? manifest.locale?.location_code,
     location_name:
       normalizeLocationName(
         override?.location_name?.trim() ||

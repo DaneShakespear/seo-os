@@ -7,6 +7,7 @@ import type { ClientManifest } from "@/lib/brain/types.ts";
 test("normalizes DataForSEO city location names", () => {
   const manifest = {
     locale: {
+      location_code: 1022639,
       location_name: "Las Vegas, Nevada, United States",
       language_name: "English",
     },
@@ -15,4 +16,5 @@ test("normalizes DataForSEO city location names", () => {
     resolveLocale(manifest).location_name,
     "Las Vegas,Nevada,United States",
   );
+  assert.equal(resolveLocale(manifest).location_code, 1022639);
 });
