@@ -97,3 +97,37 @@ test("writeHot: two parallel updates both contribute their facts to the merged f
     true,
   );
 });
+
+test("writeHot replaces stale volatile status facts and same-title threads", async () => {
+  const { writeHot, readHot } = await import("../working-memory.ts");
+  const slug = "status-vault";
+  await fsp.mkdir(path.join(tmpRoot, "vaults", slug, "wiki"), {
+    recursive: true,
+  });
+
+  await writeHot(slug, {
+    lastUpdated: "2026-09-02",
+    newFacts: ["Vault lint: 13 errors, 4 warnings."],
+    newChange: "old lint",
+    newThread: { title: "Vault lint findings", rationale: "old report" },
+    statusNote: "old",
+  });
+  await writeHot(slug, {
+    lastUpdated: "2026-09-03",
+    newFacts: ["Vault lint: 0 errors, 0 warnings."],
+    newChange: "current lint",
+    newThread: { title: "Vault lint findings", rationale: "current report" },
+    statusNote: "current",
+  });
+
+  const hot = await readHot(slug);
+  assert.ok(hot);
+  assert.deepEqual(
+    hot.keyRecentFacts.filter((fact) => fact.startsWith("Vault lint:")),
+    ["Vault lint: 0 errors, 0 warnings."],
+  );
+  assert.equal(
+    hot.activeThreads.filter((thread) => thread.title === "Vault lint findings").length,
+    1,
+  );
+});

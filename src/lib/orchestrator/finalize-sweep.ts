@@ -19,6 +19,7 @@ import type { Frontmatter, ManifestSource } from "@/lib/brain/types";
 import { readNote, writeNote } from "@/lib/brain/vault-fs";
 import { appendLogEntry } from "@/lib/orchestrator/audit-trail";
 import { readManifest, writeManifest } from "@/lib/orchestrator/client-context";
+import { readHot, writeHot } from "@/lib/orchestrator/working-memory";
 import { listChildren, type Task } from "@/lib/orchestrator/task";
 import { lintVault } from "@/lib/specialists/vault-linter";
 
@@ -54,6 +55,15 @@ export async function finalizeBrainSweep(
   }));
 
   const lint = await lintVault(clientSlug);
+  const currentHot = await readHot(clientSlug).catch(() => null);
+  await writeHot(clientSlug, {
+    lastUpdated: today,
+    newFacts: [
+      `Vault lint: ${lint.counts.error} error${lint.counts.error === 1 ? "" : "s"}, ${lint.counts.warn} warning${lint.counts.warn === 1 ? "" : "s"}.`,
+    ],
+    newChange: `${today}: sweep finalization verified current vault lint.`,
+    statusNote: currentHot?.statusNote ?? "Sweep finalization verified current vault lint.",
+  });
 
   // Secretary's semantic double-check — runs BEFORE readiness so its
   // `review` dimension can downgrade a brain with unresolved high-severity

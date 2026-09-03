@@ -97,18 +97,29 @@ async function doWriteHot(
   const existing = (await readRaw(clientSlug, HOT_RELATIVE)) ?? "";
   const parsed = matter(existing || "---\n---\n");
   const previousHot = existing ? parseHot(existing) : null;
+  const replacementPrefixes = update.newFacts
+    .map(replaceableFactPrefix)
+    .filter((prefix): prefix is string => Boolean(prefix));
+  const priorFacts = (previousHot?.keyRecentFacts ?? []).filter(
+    (fact) => !replacementPrefixes.some((prefix) => fact.startsWith(prefix)),
+  );
   const merged: Omit<HotContent, "raw"> = {
     lastUpdated: update.lastUpdated,
     keyRecentFacts: [
       ...update.newFacts,
-      ...(previousHot?.keyRecentFacts ?? []),
+      ...priorFacts,
     ].slice(0, 5),
     recentChanges: [
       update.newChange,
       ...(previousHot?.recentChanges ?? []),
     ].slice(0, 4),
     activeThreads: update.newThread
-      ? [update.newThread, ...(previousHot?.activeThreads ?? [])].slice(0, 5)
+      ? [
+          update.newThread,
+          ...(previousHot?.activeThreads ?? []).filter(
+            (thread) => thread.title !== update.newThread?.title,
+          ),
+        ].slice(0, 5)
       : (previousHot?.activeThreads ?? []),
     statusNote: update.statusNote,
   };
@@ -133,6 +144,11 @@ async function doWriteHot(
   };
   const body = renderHot(merged);
   await writeRaw(clientSlug, HOT_RELATIVE, matter.stringify(body, fm));
+}
+function replaceableFactPrefix(fact: string): string | null {
+  if (fact.startsWith("Vault lint:")) return "Vault lint:";
+  if (fact.startsWith("Brain Review ran on ")) return "Brain Review ran on ";
+  return null;
 }
 
 /* -------------------------------------------------------------------------- */

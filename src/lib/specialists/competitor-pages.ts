@@ -311,6 +311,19 @@ const spec: Specialist<Input> = {
         "",
         ...queries.map((query) => `- ${query}`),
         "",
+        ...(bridge.keywordSummary
+          ? [
+              "Retained competitor keyword coverage:",
+              `- ${bridge.keywordSummary.competitors.length} competitor domains returned ${bridge.keywordSummary.rowsPulled.toLocaleString()} keyword rows from ${bridge.keywordSummary.totalReported.toLocaleString()} reported rows.`,
+              `- The audited site returned ${bridge.keywordSummary.siteRowsPulled.toLocaleString()} rows from ${bridge.keywordSummary.siteTotalReported.toLocaleString()} reported rows.`,
+              "- Per-domain rows pulled:",
+              ...bridge.keywordSummary.competitors.map(
+                (competitor) => `  - ${competitor.domain}: ${competitor.itemsPulled.toLocaleString()} of ${competitor.totalReported.toLocaleString()} reported rows`,
+              ),
+              "- Counts describe retained source coverage, not approved keyword targets. Use the keyword-to-URL map for implementation decisions.",
+              "",
+            ]
+          : []),
         ...(bridge.artifactPaths.length
           ? [
               "Marketing Brain raw exports:",
@@ -394,7 +407,12 @@ async function runCompetitorMarketingBrainBridge(
   labsLocationCode: number | undefined,
   locationName: string,
   languageName: string,
-): Promise<{ completed: boolean; artifactPaths: string[]; message?: string }> {
+): Promise<{
+  completed: boolean;
+  artifactPaths: string[];
+  keywordSummary?: CompetitorKeywordSummary;
+  message?: string;
+}> {
   const artifactPaths: string[] = [];
   try {
     ctx.emit("progress", "Running Marketing Brain competitor discovery…", {
@@ -459,9 +477,11 @@ async function runCompetitorMarketingBrainBridge(
       ),
     );
 
+    const keywordSummary = readCompetitorKeywordSummary(ctx.clientSlug, artifactPaths);
     return {
       completed: artifactPaths.length > 0,
       artifactPaths: [...new Set(artifactPaths)],
+      ...(keywordSummary ? { keywordSummary } : {}),
     };
   } catch (err) {
     return {
@@ -469,6 +489,64 @@ async function runCompetitorMarketingBrainBridge(
       artifactPaths: [...new Set(artifactPaths)],
       message: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+interface CompetitorKeywordSummary {
+  competitors: Array<{
+    domain: string;
+    itemsPulled: number;
+    totalReported: number;
+  }>;
+  rowsPulled: number;
+  totalReported: number;
+  siteRowsPulled: number;
+  siteTotalReported: number;
+}
+
+function readCompetitorKeywordSummary(
+  clientSlug: string,
+  artifactPaths: string[],
+): CompetitorKeywordSummary | undefined {
+  const relativePath = artifactPaths.find((artifact) =>
+    /competitor-kw-summary-\d{4}-\d{2}-\d{2}\.json$/.test(artifact),
+  );
+  if (!relativePath) return undefined;
+  try {
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(vaultRoot(clientSlug), relativePath), "utf8"),
+    ) as {
+      competitors?: Array<{
+        domain?: unknown;
+        items_pulled?: unknown;
+        total_reported?: unknown;
+      }>;
+      site?: { items_pulled?: unknown; total_reported?: unknown };
+    };
+    const competitors = (raw.competitors ?? [])
+      .filter(
+        (row) =>
+          typeof row.domain === "string" &&
+          typeof row.items_pulled === "number" &&
+          typeof row.total_reported === "number",
+      )
+      .map((row) => ({
+        domain: row.domain as string,
+        itemsPulled: row.items_pulled as number,
+        totalReported: row.total_reported as number,
+      }));
+    if (competitors.length === 0) return undefined;
+    return {
+      competitors,
+      rowsPulled: competitors.reduce((sum, row) => sum + row.itemsPulled, 0),
+      totalReported: competitors.reduce((sum, row) => sum + row.totalReported, 0),
+      siteRowsPulled:
+        typeof raw.site?.items_pulled === "number" ? raw.site.items_pulled : 0,
+      siteTotalReported:
+        typeof raw.site?.total_reported === "number" ? raw.site.total_reported : 0,
+    };
+  } catch {
+    return undefined;
   }
 }
 
