@@ -87,11 +87,17 @@ def _opportunity_score(volume: int, best_pos: int | None, our_pos: int | None) -
 
 
 def _load_competitor_files(raw_dir: Path) -> list[Path]:
-    return sorted(raw_dir.glob("competitor-kw-*.json"))
+    return sorted(
+        path for path in raw_dir.glob("competitor-kw-*.json")
+        if "-page-" not in path.name and "-summary-" not in path.name
+    )
 
 
 def _load_site_file(raw_dir: Path) -> Path | None:
-    candidates = sorted(raw_dir.glob("site-ranked-keywords-*.json"))
+    candidates = sorted(
+        path for path in raw_dir.glob("site-ranked-keywords-*.json")
+        if re.fullmatch(r"site-ranked-keywords-\d{4}-\d{2}-\d{2}\.json", path.name)
+    )
     return candidates[-1] if candidates else None
 
 
@@ -303,6 +309,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--vault", required=True)
     parser.add_argument("--out-xlsx", default=None)
     parser.add_argument("--out-csv", default=None)
+    parser.add_argument("--out-json", default=None)
     args = parser.parse_args(argv)
 
     vault = Path(args.vault).expanduser().resolve()
@@ -343,16 +350,27 @@ def main(argv: list[str] | None = None) -> int:
 
     out_xlsx = Path(args.out_xlsx).expanduser().resolve() if args.out_xlsx else (vault / f"keywords-{today}.xlsx")
     out_csv = Path(args.out_csv).expanduser().resolve() if args.out_csv else (vault / f"keywords-{today}.csv")
+    out_json = Path(args.out_json).expanduser().resolve() if args.out_json else (vault / f"keywords-{today}.json")
     out_xlsx.parent.mkdir(parents=True, exist_ok=True)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
+    out_json.parent.mkdir(parents=True, exist_ok=True)
 
     _write_xlsx(out_xlsx, sheets)
     _write_csv(out_csv, sheets["All Keywords"])
+    dfs_json = {
+        "schema_version": "seo-office.keyword-workbook.v1",
+        "generated_at": today,
+        "source": "DataForSEO",
+        "rows": sheets["All Keywords"],
+    }
+    out_json.write_text(json.dumps(dfs_json, indent=2) + "\n", encoding="utf-8")
+    out_json.chmod(0o600)
     _slot_fill_keywords_base(vault, out_csv)
 
     # Console summary.
     print(f"\nWrote {out_xlsx}")
     print(f"Wrote {out_csv}")
+    print(f"Wrote {out_json}")
     print("\nSheet row counts:")
     for name, rows in sheets.items():
         print(f"  {name:<18} {len(rows):>6}")

@@ -80,6 +80,7 @@ const spec: Specialist<Input> = {
     const businessType = manifest.business_type?.trim();
     const resolvedCategory =
       input.category?.trim() ||
+      manifest.niche?.trim() ||
       (businessType && businessType !== "unknown" ? businessType : "");
     const competitors = input.competitors?.slice(0, 3) ?? [];
     const { location_name, language_name } = resolveLocale(manifest, input);
@@ -137,9 +138,10 @@ const spec: Specialist<Input> = {
     const category = resolvedCategory || "products";
 
     // Build 2-3 cheap comparison queries.
+    const market = location_name.split(",")[0]?.trim() || "";
     const queries = [
-      `${category} alternatives`,
-      `best ${category}`,
+      localizeQuery(category, market),
+      localizeQuery(`best ${category}`, market),
       ...(competitors.length > 0 ? [`${brand} vs ${competitors[0]}`] : []),
     ].slice(0, 3);
 
@@ -147,6 +149,8 @@ const spec: Specialist<Input> = {
       ctx,
       manifest.site_under_audit,
       queries,
+      location_name,
+      language_name,
     );
 
     ctx.emit("progress", `Pulling SERP for ${queries.length} comparison query(s)…`, {
@@ -266,6 +270,7 @@ const spec: Specialist<Input> = {
     const domains = [
       ...new Set(
         landscapeRows
+          .filter((row) => isMarketRelevant(row, location_name))
           .map((row) => row.domain)
           .filter((domain) => domain && domain !== manifest.site_under_audit),
       ),
@@ -374,6 +379,8 @@ async function runCompetitorMarketingBrainBridge(
   ctx: SpecialistContext<Input>,
   siteUrl: string,
   seedQueries: string[],
+  locationName: string,
+  languageName: string,
 ): Promise<{ completed: boolean; artifactPaths: string[]; message?: string }> {
   const artifactPaths: string[] = [];
   try {
@@ -392,6 +399,10 @@ async function runCompetitorMarketingBrainBridge(
         "8",
         "--depth",
         "10",
+        "--location-name",
+        locationName,
+        "--language",
+        languageCode(languageName),
         "--total-cap",
         "1.00",
       ],
@@ -415,6 +426,10 @@ async function runCompetitorMarketingBrainBridge(
         "250",
         "--max-pages-per-comp",
         "1",
+        "--location-name",
+        locationName,
+        "--language",
+        languageCode(languageName),
         "--total-cap",
         "2.00",
       ],
@@ -441,6 +456,31 @@ async function runCompetitorMarketingBrainBridge(
       message: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+function localizeQuery(query: string, market: string): string {
+  if (!market || query.toLowerCase().includes(market.toLowerCase())) return query;
+  return `${query} ${market}`;
+}
+
+function languageCode(languageName: string): string {
+  const normalized = languageName.toLowerCase();
+  if (normalized.startsWith("spanish")) return "es";
+  if (normalized.startsWith("french")) return "fr";
+  return "en";
+}
+
+function isMarketRelevant(
+  row: { title: string; domain: string },
+  locationName: string,
+): boolean {
+  const location = locationName.toLowerCase();
+  if (location.includes("united states") && /\.ca$/i.test(row.domain)) return false;
+  const market = location.split(",")[0]?.trim();
+  if (!market || market === "united states") return true;
+  const compactMarket = market.replace(/\s+/g, "");
+  const haystack = `${row.title} ${row.domain}`.toLowerCase();
+  return haystack.includes(market) || haystack.replace(/[^a-z0-9]/g, "").includes(compactMarket);
 }
 
 function latestRawDataForSeoFiles(clientSlug: string, pattern: RegExp): string[] {

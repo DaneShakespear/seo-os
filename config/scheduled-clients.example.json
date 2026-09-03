@@ -1,0 +1,13 @@
+{
+  "schema_version": "seo-office.scheduled-clients.v1",
+  "clients": [
+    {
+      "slug": "example-client",
+      "enabled": false,
+      "disabled_reason": "Semantic review has unresolved findings.",
+      "authority_status": "quarantined",
+      "last_clean_review": null,
+      "next_allowed_run": "After a zero-high, zero-medium semantic review."
+    }
+  ]
+}

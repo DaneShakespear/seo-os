@@ -202,20 +202,33 @@ const keywordResearcher: Specialist<Input> = {
 
     const bridge = await runKeywordMarketingBrainBridge(ctx);
 
-    const provenance = dataforseoConfigured() ? "live_api" : "model_estimate";
+    const verifiedRows = bridge.workbookReady
+      ? loadVerifiedKeywordRows(ctx.clientSlug).slice(0, 25)
+      : [];
+    const provenance = verifiedRows.length > 0 ? "live_api" : "model_estimate";
     // Distribute keywords across the site's REAL pages (the homepage's internal
     // links) instead of slamming every term onto "/". Token-match each keyword
     // to the closest candidate path; fall back to "/" only when nothing matches.
     const candidateUrls = Array.from(
       new Set(signals.internalLinkSamples.filter((p) => p && p !== "/")),
     );
+    const approvedMap = loadApprovedKeywordMap(ctx.clientSlug);
     const assignments =
-      data?.top_keywords.slice(0, 25).map((keyword) => ({
-        keyword: keyword.keyword,
-        volume: keyword.volume,
-        intent: keyword.intent ?? "informational",
-        url: assignKeywordUrl(keyword.keyword, candidateUrls),
-      })) ?? [];
+      verifiedRows.length > 0
+        ? verifiedRows.map((keyword) => ({
+            keyword: keyword.keyword,
+            volume: keyword.search_volume,
+            intent: keyword.intent ?? "informational",
+            url:
+              normalizeOwnedUrl(keyword.our_url, manifest.site_under_audit) ??
+              assignKeywordUrl(keyword.keyword, candidateUrls, approvedMap),
+          }))
+        : data?.top_keywords.slice(0, 25).map((keyword) => ({
+            keyword: keyword.keyword,
+            volume: keyword.volume,
+            intent: keyword.intent ?? "informational",
+            url: assignKeywordUrl(keyword.keyword, candidateUrls, approvedMap),
+          })) ?? [];
     const keywordRows = assignments.map(
       (a) => `| ${escapeTable(a.keyword)} | ${a.url} | ${a.volume} | ${a.intent} | ${provenance} |`,
     );
@@ -295,8 +308,8 @@ const keywordResearcher: Specialist<Input> = {
       },
       evidence: [
         {
-          claim: dataforseoConfigured()
-            ? "Keyword map was generated with DataForSEO available."
+          claim: verifiedRows.length > 0
+            ? "Keyword map volumes were loaded from the retained DataForSEO keyword workbook."
             : "Keyword map was generated from visible page signals and model-estimated demand.",
           provenance,
           source_paths: [
@@ -305,16 +318,16 @@ const keywordResearcher: Specialist<Input> = {
             "wiki/sources/DataForSEO Keyword Exports.md",
             ...bridge.artifactPaths,
           ],
-          confidence: dataforseoConfigured() ? "high" : "medium",
+          confidence: verifiedRows.length > 0 ? "high" : "medium",
           cost_usd: result.costUsd ?? 0,
         },
       ],
-      degraded: !dataforseoConfigured() || !bridge.workbookReady,
-      ...(!dataforseoConfigured() || !bridge.workbookReady
+      degraded: verifiedRows.length === 0,
+      ...(verifiedRows.length === 0
         ? {
             degradationReason: !dataforseoConfigured()
               ? "DataForSEO is not configured; volumes are model estimates."
-              : bridge.message ?? "Marketing Brain keyword workbook could not be generated.",
+              : bridge.message ?? "No verified DataForSEO keyword rows were retained.",
           }
         : {}),
     };
@@ -336,7 +349,19 @@ function escapeTable(value: string): string {
  * what prevents the all-keywords-on-"/" cannibalization the old hardcoded
  * default produced.
  */
-function assignKeywordUrl(keyword: string, candidates: string[]): string {
+function assignKeywordUrl(
+  keyword: string,
+  candidates: string[],
+  approved: Array<{ keyword: string; url: string; match?: "exact" | "contains" }> = [],
+): string {
+  const normalizedKeyword = keyword.toLowerCase().trim();
+  const approvedMatch = approved.find((entry) => {
+    const needle = entry.keyword.toLowerCase().trim();
+    return entry.match === "contains"
+      ? normalizedKeyword.includes(needle)
+      : normalizedKeyword === needle;
+  });
+  if (approvedMatch) return approvedMatch.url;
   const words = keyword.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
   let best = "/";
   let bestScore = 0;
@@ -426,7 +451,7 @@ async function runKeywordMarketingBrainBridge(
       };
     }
 
-    artifactPaths.push(...latestVaultFiles(ctx.clientSlug, /^keywords-\d{4}-\d{2}-\d{2}\.(xlsx|csv)$/));
+    artifactPaths.push(...latestVaultFiles(ctx.clientSlug, /^keywords-\d{4}-\d{2}-\d{2}\.(xlsx|csv|json)$/));
 
     const csvPath = latestVaultFileAbs(ctx.clientSlug, /^keywords-\d{4}-\d{2}-\d{2}\.csv$/);
     if (csvPath) {
@@ -457,7 +482,9 @@ async function runKeywordMarketingBrainBridge(
     }
 
     return {
-      workbookReady: artifactPaths.some((artifact) => artifact.endsWith(".xlsx")),
+      workbookReady:
+        artifactPaths.some((artifact) => artifact.endsWith(".xlsx")) &&
+        artifactPaths.some((artifact) => artifact.endsWith(".json")),
       artifactPaths: [...new Set(artifactPaths)],
     };
   } catch (err) {
@@ -480,6 +507,69 @@ function latestVaultFiles(clientSlug: string, pattern: RegExp): string[] {
   const out: string[] = [];
   walk(root, root, pattern, out);
   return out.sort();
+}
+
+interface VerifiedKeywordRow {
+  keyword: string;
+  search_volume: number;
+  intent?: string;
+  our_url?: string | null;
+}
+
+function loadVerifiedKeywordRows(clientSlug: string): VerifiedKeywordRow[] {
+  const file = latestVaultFileAbs(clientSlug, /^keywords-\d{4}-\d{2}-\d{2}\.json$/);
+  if (!file) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as {
+      source?: string;
+      rows?: unknown[];
+    };
+    if (parsed.source !== "DataForSEO" || !Array.isArray(parsed.rows)) return [];
+    return parsed.rows
+      .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+      .map((row) => ({
+        keyword: String(row.keyword ?? "").trim(),
+        search_volume: Number(row.search_volume ?? 0),
+        intent: typeof row.intent === "string" ? row.intent : undefined,
+        our_url: typeof row.our_url === "string" ? row.our_url : null,
+      }))
+      .filter((row) => row.keyword.length > 0 && Number.isFinite(row.search_volume));
+  } catch {
+    return [];
+  }
+}
+
+function loadApprovedKeywordMap(
+  clientSlug: string,
+): Array<{ keyword: string; url: string; match?: "exact" | "contains" }> {
+  const file = path.join(vaultRoot(clientSlug), ".raw", "approved-keyword-url-map.json");
+  if (!fs.existsSync(file)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as { mappings?: unknown[] };
+    if (!Array.isArray(parsed.mappings)) return [];
+    return parsed.mappings
+      .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+      .map((row) => ({
+        keyword: String(row.keyword ?? "").trim(),
+        url: String(row.url ?? "").trim(),
+        match: row.match === "contains" ? "contains" as const : "exact" as const,
+      }))
+      .filter((row) => row.keyword.length > 0 && row.url.startsWith("/"));
+  } catch {
+    return [];
+  }
+}
+
+function normalizeOwnedUrl(value: string | null | undefined, siteUrl: string): string | null {
+  if (!value) return null;
+  try {
+    const candidate = new URL(value, siteUrl);
+    const site = new URL(siteUrl);
+    if (candidate.hostname !== site.hostname) return null;
+    return candidate.pathname || "/";
+  } catch {
+    return value.startsWith("/") ? value : null;
+  }
 }
 
 function walk(root: string, dir: string, pattern: RegExp, out: string[]): void {

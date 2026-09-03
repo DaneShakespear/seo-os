@@ -72,10 +72,9 @@ def _resolve_competitors_file(vault: Path, explicit: str | None) -> Path:
     return candidates[-1]
 
 
-def _payload(domain: str, location: int, language: str, limit: int, offset: int) -> list[dict[str, Any]]:
-    return [{
+def _payload(domain: str, location: int, location_name: str, language: str, limit: int, offset: int) -> list[dict[str, Any]]:
+    task: dict[str, Any] = {
         "target": domain,
-        "location_code": location,
         "language_code": language,
         "item_types": ["organic"],
         "limit": limit,
@@ -90,13 +89,19 @@ def _payload(domain: str, location: int, language: str, limit: int, offset: int)
             "keyword_data.keyword_info.search_volume,desc",
         ],
         "tag": f"{domain}|{offset}",
-    }]
+    }
+    if location_name:
+        task["location_name"] = location_name
+    else:
+        task["location_code"] = location
+    return [task]
 
 
 def _pull_domain(
     domain: str,
     *,
     location: int,
+    location_name: str,
     language: str,
     limit: int,
     max_pages: int,
@@ -121,7 +126,7 @@ def _pull_domain(
         per_page_path = out_dir / f"{file_prefix}-{_slug(domain)}-page-{offset}-{today}.json"
         data = dfs.call(
             ENDPOINT,
-            _payload(domain, location, language, limit, offset),
+            _payload(domain, location, location_name, language, limit, offset),
             label=page_label,
             save_to=per_page_path,
         )
@@ -150,6 +155,7 @@ def _pull_domain(
         "domain": domain,
         "generated_at": today,
         "location_code": location,
+        "location_name": location_name or None,
         "language_code": language,
         "items_pulled": items_total,
         "total_count_reported": total_count_reported,
@@ -166,7 +172,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--competitors", default=None, help="Path to competitors-*.json (defaults to most recent)")
     parser.add_argument("--limit-per-comp", type=int, default=1000, help="Items per page (max DataForSEO allows)")
     parser.add_argument("--max-pages-per-comp", type=int, default=1, help="0 = all pages")
-    parser.add_argument("--location", type=int, default=2124)
+    parser.add_argument("--location", type=int, default=2840)
+    parser.add_argument("--location-name", default="", help="Exact DataForSEO location name; overrides --location")
     parser.add_argument("--language", default="en")
     parser.add_argument("--cost-cap", type=float, default=0.50)
     parser.add_argument("--total-cap", type=float, default=5.00)
@@ -218,6 +225,7 @@ def main(argv: list[str] | None = None) -> int:
             out_path, items, total = _pull_domain(
                 domain,
                 location=args.location,
+                location_name=args.location_name,
                 language=args.language,
                 limit=args.limit_per_comp,
                 max_pages=args.max_pages_per_comp,
@@ -234,6 +242,7 @@ def main(argv: list[str] | None = None) -> int:
             out_path, items, total = _pull_domain(
                 site_root,
                 location=args.location,
+                location_name=args.location_name,
                 language=args.language,
                 limit=args.limit_per_comp,
                 max_pages=args.max_pages_per_comp,

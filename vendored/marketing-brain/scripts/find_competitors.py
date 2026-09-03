@@ -24,8 +24,8 @@ Inputs
 - ``--vault``: the client vault root (parent of ``.raw/``).
 - ``--seed-keywords``: comma-separated seeds (optional).
 - ``--top``: how many competitors to return (default 10).
-- ``--location``: DataForSEO location code (default 2124 = Canada;
-                  use 2840 for US, 2826 for UK).
+- ``--location``: DataForSEO location code (default 2840 = United States).
+- ``--location-name``: exact DataForSEO location name; overrides the code.
 - ``--language``: 2-letter language code (default ``en``).
 - ``--cost-cap``: per-call cost cap in USD (default 0.50).
 - ``--include-social`` / ``--include-authority``: keep filtered domains.
@@ -179,7 +179,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--vault", required=True, help="Vault root directory")
     parser.add_argument("--seed-keywords", default="", help="Comma-separated seeds (optional)")
     parser.add_argument("--top", type=int, default=10, help="Number of competitors to return")
-    parser.add_argument("--location", type=int, default=2124, help="DataForSEO location code (default 2124 = Canada)")
+    parser.add_argument("--location", type=int, default=2840, help="DataForSEO location code (default 2840 = United States)")
+    parser.add_argument("--location-name", default="", help="Exact DataForSEO location name; overrides --location")
     parser.add_argument("--language", default="en", help="Language code (default en)")
     parser.add_argument("--cost-cap", type=float, default=0.50, help="Per-call cost cap (USD)")
     parser.add_argument("--total-cap", type=float, default=5.00, help="Total run cost cap (USD)")
@@ -237,10 +238,13 @@ def main(argv: list[str] | None = None) -> int:
         for seed in seeds:
             payload = [{
                 "keyword": seed,
-                "location_code": args.location,
                 "language_code": args.language,
                 "depth": args.depth,
             }]
+            if args.location_name:
+                payload[0]["location_name"] = args.location_name
+            else:
+                payload[0]["location_code"] = args.location
             save_to = out_dir / f"serp-{_slug(seed)}-{today}.json"
             data = dfs.call(ENDPOINT, payload, label=f"serp/{seed}", save_to=save_to)
             tasks = data.get("tasks") or []
@@ -330,6 +334,7 @@ def _write_output(
         "generated_at": date.today().isoformat(),
         "site": args.site,
         "location_code": args.location,
+        "location_name": args.location_name or None,
         "language_code": args.language,
         "seeds_used": seeds,
         "depth_per_seed": args.depth,

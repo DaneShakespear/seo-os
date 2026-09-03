@@ -128,6 +128,11 @@ const REVIEWED_UNSCOPED_SQL: Array<{
     match: /SELECT 1 FROM tasks LIMIT 1/i,
     reason: "existence probe only; returns no tenant data and degrades when task table is absent",
   },
+  {
+    file: "src/app/api/health/route.ts",
+    match: /SELECT client_slug, id, status, result_summary, created_at, updated_at FROM tasks WHERE kind = 'sweep' AND parent_task_id IS NULL ORDER BY created_at DESC LIMIT 8/i,
+    reason: "operator-only service health endpoint intentionally summarizes recent runs across configured clients",
+  },
 ];
 
 test("R4 tenant-table SQL is client-scoped or explicitly reviewed", async () => {

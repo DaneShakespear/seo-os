@@ -52,6 +52,7 @@ import {
 import { narrateToChat } from "./chat-narrator";
 import { hasLiveSweep } from "./sweeps";
 import { finalizeBrainSweep } from "./finalize-sweep";
+import { readBrainReview } from "@/lib/brain/brain-review";
 import { renderReadinessChatSummary } from "./readiness-narration";
 import { releaseSweepLock } from "@/lib/brain/index-db";
 import { reportApiPath } from "@/lib/reports/url";
@@ -510,8 +511,22 @@ async function finalizeAndReleaseSweep(root: Task): Promise<void> {
   try {
     const readiness = await finalizeBrainSweep(root.client_slug, root.id);
     if (readiness) {
-      updateTaskStatus(root.id, readiness.status === "partial_brain" ? "failed" : "succeeded", {
-        result_summary: `final review complete: ${readiness.status} ${readiness.score}/100`,
+      const semanticReview = await readBrainReview(root.client_slug);
+      const semanticGateFailed =
+        !semanticReview ||
+        semanticReview.high_severity > 0 ||
+        semanticReview.medium_severity > 0;
+      const finalStatus =
+        readiness.status === "partial_brain" || semanticGateFailed
+          ? "failed"
+          : "succeeded";
+      const semanticSummary = semanticReview
+        ? `${semanticReview.high_severity} high, ${semanticReview.medium_severity} medium`
+        : "review unavailable";
+      updateTaskStatus(root.id, finalStatus, {
+        result_summary: semanticGateFailed
+          ? `semantic review failed: ${semanticSummary}; readiness ${readiness.status} ${readiness.score}/100`
+          : `final review complete: ${readiness.status} ${readiness.score}/100`,
       });
       await mirrorTaskTreeToVault(root.id).catch(() => undefined);
       await narrateToChat(

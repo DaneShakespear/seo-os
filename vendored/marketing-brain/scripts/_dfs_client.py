@@ -34,6 +34,7 @@ Stdlib only. Python 3.10+.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import sys
@@ -41,6 +42,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any
 
 API_BASE = "https://api.dataforseo.com"
@@ -162,7 +164,27 @@ def call(
     # the operator needs the audit trail.
     if save_to is not None:
         save_path = Path(save_to)
-        write_private_text(save_path, json.dumps(data, indent=2) + "\n")
+        response_text = json.dumps(data, indent=2) + "\n"
+        write_private_text(save_path, response_text)
+        request_text = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        receipt = {
+            "schema_version": "seo-office.dataforseo-receipt.v1",
+            "provider": "DataForSEO",
+            "endpoint": endpoint,
+            "label": label,
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "request": payload,
+            "request_sha256": hashlib.sha256(request_text.encode("utf-8")).hexdigest(),
+            "response_path": save_path.name,
+            "response_sha256": hashlib.sha256(response_text.encode("utf-8")).hexdigest(),
+            "status_code": data.get("status_code"),
+            "status_message": data.get("status_message"),
+            "cost_usd": float(data.get("cost") or 0.0),
+        }
+        write_private_text(
+            save_path.with_suffix(save_path.suffix + ".meta.json"),
+            json.dumps(receipt, indent=2) + "\n",
+        )
 
     # API-level error check.
     api_status = data.get("status_code")
