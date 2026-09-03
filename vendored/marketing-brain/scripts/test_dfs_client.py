@@ -9,9 +9,20 @@ from pathlib import Path
 from unittest.mock import patch
 
 import _dfs_client as dfs
+import find_competitors as competitor_discovery
 
 
 class DataForSEOReceiptTest(unittest.TestCase):
+    def test_directory_platforms_are_not_business_competitors(self) -> None:
+        self.assertTrue(
+            competitor_discovery._is_excluded(
+                "yelp.com",
+                self_root="luxurylimousineoflasvegas.com",
+                include_social=False,
+                include_authority=False,
+            )
+        )
+
     def test_exact_location_name_does_not_claim_unused_country_code(self) -> None:
         self.assertEqual(
             dfs.location_metadata(2840, "Las Vegas,Nevada,United States"),

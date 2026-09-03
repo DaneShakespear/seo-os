@@ -77,6 +77,8 @@ _AUTHORITY_SUFFIXES = (".gov", ".gov.uk", ".gc.ca", ".gov.au")
 _AUTHORITY_HOSTS = {
     "wikipedia.org", "en.wikipedia.org",
     "ontario.ca", "canada.ca",
+    "yelp.com", "tripadvisor.com", "yellowpages.com", "mapquest.com",
+    "bbb.org", "angi.com", "thumbtack.com",
 }
 
 

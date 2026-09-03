@@ -482,6 +482,16 @@ function isMarketRelevant(
   row: { title: string; domain: string },
   locationName: string,
 ): boolean {
+  const excludedPlatforms = new Set([
+    "yelp.com",
+    "tripadvisor.com",
+    "yellowpages.com",
+    "mapquest.com",
+    "bbb.org",
+    "angi.com",
+    "thumbtack.com",
+  ]);
+  if (excludedPlatforms.has(row.domain.toLowerCase().replace(/^www\./, ""))) return false;
   const location = locationName.toLowerCase();
   if (location.includes("united states") && /\.ca$/i.test(row.domain)) return false;
   const market = location.split(",")[0]?.trim();
