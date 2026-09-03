@@ -100,7 +100,7 @@ export async function rebuildOverview(
         status: "active",
         created: parsed.data.created ?? today,
         owner: manifest.manifest_owner,
-        confidence: "high",
+        confidence: "medium",
         approval_status: "approved",
         rollback_note:
           "Derived from .raw/.manifest.json. Rebuild overview.md from the manifest to roll back manual edits.",

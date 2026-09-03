@@ -103,6 +103,10 @@ const REVIEWED_RAW_BRAIN_IO = new Map<string, string>([
     "writes GitHub repository metadata JSON under .raw/",
   ],
   [
+    "src/lib/specialists/backlink-analyst.ts",
+    "writes retained provider request and response JSON under .raw/",
+  ],
+  [
     "src/lib/specialists/vault-linter.ts",
     "read-only linter scans raw markdown and validates frontmatter separately",
   ],

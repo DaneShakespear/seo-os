@@ -6,8 +6,10 @@
  * missing integrations — graceful degradation IS the deliverable.
  */
 import "server-only";
+import { createHash } from "node:crypto";
 import { z } from "zod";
-import { readManifest } from "@/lib/orchestrator/client-context";
+import { readManifest, recordSource } from "@/lib/orchestrator/client-context";
+import { writeRaw } from "@/lib/brain/vault-fs";
 import { registerSpecialist, type Specialist } from "@/lib/orchestrator/registry";
 import { selectProvider } from "@/lib/integrations/providers";
 import { isAvailable } from "./_lib/availability";
@@ -156,6 +158,7 @@ const backlinkAnalyst: Specialist<Input> = {
   async execute(ctx) {
     const manifest = await readManifest(ctx.clientSlug);
     if (!manifest) throw new Error(`no manifest for client "${ctx.clientSlug}"`);
+    const today = new Date().toISOString().slice(0, 10);
 
     const targetUrl = manifest.site_under_audit;
     const domain = domainOf(targetUrl);
@@ -210,6 +213,34 @@ const backlinkAnalyst: Specialist<Input> = {
       raw,
       derived,
     };
+    const retainedSourcePath =
+      source === "none"
+        ? null
+        : `.raw/sources/${source}/backlinks-summary-${today}.json`;
+    if (retainedSourcePath) {
+      const retained = JSON.stringify(
+        {
+          retrieved_at: new Date().toISOString(),
+          source,
+          request: {
+            target: domain,
+            backlinks_status_type: "live",
+            include_subdomains: true,
+          },
+          raw,
+          derived,
+        },
+        null,
+        2,
+      );
+      await writeRaw(ctx.clientSlug, retainedSourcePath, retained);
+      await recordSource(ctx.clientSlug, `backlinks:${source}:${today}`, {
+        path: retainedSourcePath,
+        hash: createHash("sha256").update(retained).digest("hex"),
+        retrieved_at: new Date().toISOString(),
+        cost_usd: 0,
+      });
+    }
 
     ctx.emit("log", `Backlink source resolved: ${source}`);
     const degradation = optionalIntegrationDegradation("backlink-analyst");
@@ -235,7 +266,6 @@ const backlinkAnalyst: Specialist<Input> = {
       `${provider.id}${result.model ? " · " + result.model : ""}${result.durationMs ? " · " + (result.durationMs / 1000).toFixed(1) + "s" : ""}${result.costUsd != null ? " · $" + result.costUsd.toFixed(4) : ""}`,
     );
 
-    const today = new Date().toISOString().slice(0, 10);
     const { data, body: bodyWithChart } = applyStructuredOutput({
       rawText: result.text,
       expectedKind: "backlinks",
@@ -275,7 +305,9 @@ const backlinkAnalyst: Specialist<Input> = {
         type: "backlinks",
         frontmatterType: "audit",
         title: `Backlink audit — ${domain}`,
-        body: bodyWithChart,
+        body: retainedSourcePath
+          ? `${bodyWithChart.trim()}\n\n## Retained provider evidence\n- Raw ${source} request metadata and response: \`${retainedSourcePath}\`.\n- The raw file is the audit source for every exact aggregate and breakdown above.\n`
+          : bodyWithChart,
         tags: ["audit", "backlinks", "off-page", "claude-generated"],
         url: targetUrl,
         reportSubtitle: data
@@ -283,7 +315,9 @@ const backlinkAnalyst: Specialist<Input> = {
           : undefined,
         ...(data ? { data } : {}),
         costUsd: result.costUsd ?? 0,
-        ...degradation.artifact,
+        ...(source === "none"
+          ? degradation.artifact
+          : { confidence: "medium" as const, dataSources: ["live_api"] as ["live_api"] }),
       },
       {
         facts: [sourceFact, profileFact],
@@ -291,7 +325,7 @@ const backlinkAnalyst: Specialist<Input> = {
         threadRationale:
           source === "none"
             ? "configure a backlink provider to unlock real data"
-            : "review anchor mix + flagged toxic referrers",
+            : "review the retained provider summary before classifying backlink risk",
         statusNote:
           source === "none"
             ? "Backlink audit degraded — see report for the cheapest path to real data."
@@ -314,7 +348,7 @@ const backlinkAnalyst: Specialist<Input> = {
         derived,
         ...(data ? { structured: data } : {}),
       },
-      ...degradation.result,
+      ...(source === "none" ? degradation.result : {}),
     };
   },
 };
