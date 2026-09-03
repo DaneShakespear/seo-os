@@ -10,6 +10,11 @@ import "server-only";
 import { envValue } from "@/lib/setup/env-local";
 
 const BASE_URL = "https://api.dataforseo.com";
+const MAX_ATTEMPTS = 4;
+
+function retryDelay(attempt: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
+}
 
 export function isConfigured(): boolean {
   return Boolean(envValue("DATAFORSEO_LOGIN") && envValue("DATAFORSEO_PASSWORD"));
@@ -50,36 +55,58 @@ export async function post<T = unknown>(
   payload: unknown,
 ): Promise<DataForSEOResponse<T>> {
   const body = Array.isArray(payload) ? payload : [payload];
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      Authorization: authHeader(),
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`DataForSEO ${path} → HTTP ${res.status}: ${text.slice(0, 200)}`);
+  let lastTransient = "";
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader(),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      lastTransient = error instanceof Error ? error.message : String(error);
+      if (attempt + 1 < MAX_ATTEMPTS) {
+        await retryDelay(attempt);
+        continue;
+      }
+      throw error;
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      lastTransient = `HTTP ${res.status}: ${text.slice(0, 200)}`;
+      if (res.status >= 500 && attempt + 1 < MAX_ATTEMPTS) {
+        await retryDelay(attempt);
+        continue;
+      }
+      throw new Error(`DataForSEO ${path} → ${lastTransient}`);
+    }
+    const json = (await res.json()) as DataForSEOResponse<T>;
+    if (json.status_code >= 40000) {
+      throw new Error(`DataForSEO ${path} → ${json.status_code}: ${json.status_message}`);
+    }
+    const failedTask = json.tasks?.find((task) => task.status_code >= 40000);
+    if (failedTask) {
+      lastTransient = `task → ${failedTask.status_code}: ${failedTask.status_message}`;
+      if (failedTask.status_code === 40101 && attempt + 1 < MAX_ATTEMPTS) {
+        await retryDelay(attempt);
+        continue;
+      }
+      throw new Error(`DataForSEO ${path} ${lastTransient}`);
+    }
+    if (!json.cost) {
+      json.cost = json.tasks?.reduce(
+        (sum, task) => sum + Number((task as { cost?: number }).cost ?? 0),
+        0,
+      ) ?? 0;
+    }
+    return json;
   }
-  const json = (await res.json()) as DataForSEOResponse<T>;
-  if (json.status_code >= 40000) {
-    throw new Error(`DataForSEO ${path} → ${json.status_code}: ${json.status_message}`);
-  }
-  const failedTask = json.tasks?.find((task) => task.status_code >= 40000);
-  if (failedTask) {
-    throw new Error(
-      `DataForSEO ${path} task → ${failedTask.status_code}: ${failedTask.status_message}`,
-    );
-  }
-  if (!json.cost) {
-    json.cost = json.tasks?.reduce(
-      (sum, task) => sum + Number((task as { cost?: number }).cost ?? 0),
-      0,
-    ) ?? 0;
-  }
-  return json;
+  throw new Error(`DataForSEO ${path} exhausted retries: ${lastTransient}`);
 }
 
 /**
