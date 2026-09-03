@@ -564,6 +564,12 @@ const vaultLinter: Specialist<Input> = {
       },
     );
 
+    if (report.counts.error > 0) {
+      throw new Error(
+        `Vault lint failed with ${report.counts.error} structural error${report.counts.error === 1 ? "" : "s"}; report: ${relativePath}`,
+      );
+    }
+
     return {
       summary: report.clean
         ? "Vault lint clean — no findings"
