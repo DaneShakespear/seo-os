@@ -336,8 +336,7 @@ def _write_output(
     payload = {
         "generated_at": date.today().isoformat(),
         "site": args.site,
-        "location_code": args.location,
-        "location_name": args.location_name or None,
+        **dfs.location_metadata(args.location, args.location_name),
         "language_code": args.language,
         "seeds_used": seeds,
         "depth_per_seed": args.depth,

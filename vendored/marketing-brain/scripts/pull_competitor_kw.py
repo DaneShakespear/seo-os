@@ -154,8 +154,7 @@ def _pull_domain(
     consolidated = {
         "domain": domain,
         "generated_at": today,
-        "location_code": location,
-        "location_name": location_name or None,
+        **dfs.location_metadata(location, location_name),
         "language_code": language,
         "items_pulled": items_total,
         "total_count_reported": total_count_reported,

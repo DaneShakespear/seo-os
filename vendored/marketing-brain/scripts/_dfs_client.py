@@ -76,6 +76,13 @@ class DataForSEOError(RuntimeError):
     """Raised on a non-retryable API or auth error."""
 
 
+def location_metadata(location: int, location_name: str) -> dict[str, object]:
+    """Describe the location selector actually sent to DataForSEO."""
+    if location_name:
+        return {"location_code": None, "location_name": location_name}
+    return {"location_code": location, "location_name": None}
+
+
 # Public API -----------------------------------------------------------------
 def set_caps(per_call: float | None = None, total: float | None = None) -> None:
     """Override the default per-call and/or total cost caps.
