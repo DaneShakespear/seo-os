@@ -102,12 +102,28 @@ async function doWriteHot(
       .map(replaceableFactKey)
       .filter((key): key is string => Boolean(key)),
   );
+  const seenFactIdentities = new Set(
+    update.newFacts.map((fact) => replaceableFactKey(fact) ?? fact),
+  );
   const priorFacts = (previousHot?.keyRecentFacts ?? []).filter(
     (fact) => {
       const key = replaceableFactKey(fact);
-      return !key || !replacementKeys.has(key);
+      if (key && replacementKeys.has(key)) return false;
+      const identity = key ?? fact;
+      if (seenFactIdentities.has(identity)) return false;
+      seenFactIdentities.add(identity);
+      return true;
     },
   );
+  const activeCandidates = update.newThread
+    ? [update.newThread, ...(previousHot?.activeThreads ?? [])]
+    : (previousHot?.activeThreads ?? []);
+  const seenThreadTitles = new Set<string>();
+  const activeThreads = activeCandidates.filter((thread) => {
+    if (seenThreadTitles.has(thread.title)) return false;
+    seenThreadTitles.add(thread.title);
+    return true;
+  });
   const merged: Omit<HotContent, "raw"> = {
     lastUpdated: update.lastUpdated,
     keyRecentFacts: [
@@ -120,14 +136,7 @@ async function doWriteHot(
         (change) => change !== update.newChange,
       ),
     ].slice(0, 4),
-    activeThreads: update.newThread
-      ? [
-          update.newThread,
-          ...(previousHot?.activeThreads ?? []).filter(
-            (thread) => thread.title !== update.newThread?.title,
-          ),
-        ].slice(0, 5)
-      : (previousHot?.activeThreads ?? []),
+    activeThreads: activeThreads.slice(0, 5),
     statusNote: update.statusNote,
   };
   const today = new Date().toISOString().slice(0, 10);
