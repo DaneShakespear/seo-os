@@ -24,7 +24,7 @@ import {
 import { selectProvider } from "@/lib/integrations/providers";
 import { runMarketingBrainScript } from "@/lib/marketing-brain/scripts";
 import { writeArtifact } from "./_lib/artifact";
-import { updateCanonicalNote } from "@/lib/brain/canonical-writer";
+import { replaceCanonicalNoteFromSource } from "@/lib/brain/canonical-writer";
 
 const SYSTEM_PROMPT = `You are the BEAST Planner inside SEO Office.
 
@@ -177,26 +177,10 @@ const beastPlanner: Specialist<Input> = {
       manifest.site_under_audit,
     );
 
-    await updateCanonicalNote(
+    await replaceCanonicalNoteFromSource(
       ctx.clientSlug,
+      relativePath,
       "wiki/deliverables/ULTIMATE BEAST Plan.md",
-      "beast-plan",
-      [
-        `Latest BEAST synthesis generated from ${audits.length} prior audit(s).`,
-        fallbackReason
-          ? `This run used ${scriptSynthesis.planBody ? "the Marketing Brain deterministic synthesis" : "the deterministic fallback"} because provider synthesis failed: ${fallbackReason}`
-          : "This run used the configured synthesis provider, with Marketing Brain script context when available.",
-        scriptSynthesis.artifactPaths.length
-          ? `Marketing Brain script artifacts: ${scriptSynthesis.artifactPaths.map((artifact) => `\`${artifact}\``).join(", ")}.`
-          : `Marketing Brain script synthesis unavailable: ${scriptSynthesis.message ?? "no script output"}.`,
-        renderedReportPath
-          ? `Rendered in-app BEAST report: \`${renderedReportPath}\`.`
-          : "Rendered in-app BEAST report pending.",
-        "",
-        body,
-        "",
-        `Evidence: [[${relativePath.replace(/^wiki\//, "").replace(/\.md$/, "")}]].`,
-      ].join("\n"),
     );
 
     return {

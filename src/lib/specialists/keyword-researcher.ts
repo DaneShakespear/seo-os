@@ -31,7 +31,10 @@ import {
   type KeywordRule,
 } from "./_lib/keyword-rules";
 import { applyStructuredOutput, sidecarRef } from "./_lib/structured-output";
-import { updateCanonicalNote } from "@/lib/brain/canonical-writer";
+import {
+  replaceCanonicalNoteFromSource,
+  updateCanonicalNote,
+} from "@/lib/brain/canonical-writer";
 
 const SYSTEM_PROMPT = `You are the Keyword Researcher inside SEO Office.
 
@@ -200,12 +203,22 @@ const keywordResearcher: Specialist<Input> = {
         threadRationale: "review clusters + prioritise the first 3",
         statusNote:
           dataforseoConfigured()
-            ? "Keyword plan on file — pull real volumes next."
+            ? "DataForSEO is configured; quantitative output must pass retained-evidence review."
             : "Keyword plan on file — configure DataForSEO for real volumes.",
       },
     );
 
     const bridge = await runKeywordMarketingBrainBridge(ctx);
+    const paaDigestPath = bridge.artifactPaths.find((artifact) =>
+      /paa-digest-\d{4}-\d{2}-\d{2}\.md$/.test(artifact),
+    );
+    if (paaDigestPath) {
+      await replaceCanonicalNoteFromSource(
+        ctx.clientSlug,
+        paaDigestPath,
+        "wiki/sources/PAA Mining Digest.md",
+      );
+    }
 
     const verifiedRows = bridge.workbookReady
       ? loadVerifiedKeywordRows(ctx.clientSlug).slice(0, 25)

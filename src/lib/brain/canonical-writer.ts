@@ -36,6 +36,16 @@ export async function updateCanonicalNote(
   );
 }
 
+export async function replaceCanonicalNoteFromSource(
+  clientSlug: string,
+  sourcePath: string,
+  canonicalPath: string,
+): Promise<void> {
+  const source = await readRaw(clientSlug, sourcePath);
+  if (!source) return;
+  await writeRaw(clientSlug, canonicalPath, source);
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

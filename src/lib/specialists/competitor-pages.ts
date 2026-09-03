@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { vaultRoot } from "@/lib/brain/paths";
-import { readManifest } from "@/lib/orchestrator/client-context";
+import { readManifest, writeManifest } from "@/lib/orchestrator/client-context";
 import {
   registerSpecialist,
   type Specialist,
@@ -22,6 +22,7 @@ import { resolveLocale } from "./_lib/locale";
 import { brandLabel } from "./_lib/derive";
 import { writeArtifact } from "./_lib/artifact";
 import { updateCanonicalNote } from "@/lib/brain/canonical-writer";
+import { rebuildOverview } from "@/lib/brain/overview-render";
 
 const SYSTEM_PROMPT = `You are the Competitor Pages strategist inside SEO Office.
 
@@ -280,6 +281,11 @@ const spec: Specialist<Input> = {
           .filter((domain) => domain && domain !== manifest.site_under_audit),
       ),
     ].slice(0, 12);
+
+    manifest.primary_competitors = domains;
+    manifest.last_updated = new Date().toISOString().slice(0, 10);
+    await writeManifest(ctx.clientSlug, manifest);
+    await rebuildOverview(ctx.clientSlug, manifest);
 
     await updateCanonicalNote(
       ctx.clientSlug,
