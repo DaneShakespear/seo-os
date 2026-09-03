@@ -48,6 +48,8 @@ Produce a Markdown report with exactly these sections, in this order:
 ## Voice and constraints
 
 - Every numerical claim must trace to one of the audits in the payload. Cite the audit file (e.g. "per 2026-05-11-technical.md").
+- Put the supporting vault-relative audit path beside every exact metric.
+- Treat work documented as completed in a newer audit as a maintained guardrail, not unfinished work.
 - No traffic promises, no "guaranteed ranking" language, no "in 30 days you'll…" claims.
 - Every action in the 30-day plan must have: owner (default: "operator"), acceptance criteria (one sentence), rollback (one sentence).
 - White-hat only. If a tactic is grey-area, label it and move on.
