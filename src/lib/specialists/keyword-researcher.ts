@@ -25,7 +25,11 @@ import { runMarketingBrainScript } from "@/lib/marketing-brain/scripts";
 import { extractSignals } from "./_lib/fetch-signals";
 import { inferBusinessType } from "./_lib/business-type";
 import { writeArtifact } from "./_lib/artifact";
-import { isExcludedKeyword, type KeywordRule } from "./_lib/keyword-rules";
+import {
+  assignKeywordUrl,
+  isExcludedKeyword,
+  type KeywordRule,
+} from "./_lib/keyword-rules";
 import { applyStructuredOutput, sidecarRef } from "./_lib/structured-output";
 import { updateCanonicalNote } from "@/lib/brain/canonical-writer";
 
@@ -347,40 +351,6 @@ export default keywordResearcher;
 
 function escapeTable(value: string): string {
   return value.replace(/\|/g, "/").replace(/\n/g, " ").trim();
-}
-
-/**
- * Assign a keyword to the best-matching candidate page path by token overlap.
- * Candidates are the homepage's internal links (real site pages). Falls back to
- * "/" only when no path shares a meaningful token with the keyword — this is
- * what prevents the all-keywords-on-"/" cannibalization the old hardcoded
- * default produced.
- */
-function assignKeywordUrl(
-  keyword: string,
-  candidates: string[],
-  approved: Array<{ keyword: string; url: string; match?: "exact" | "contains" }> = [],
-): string {
-  const normalizedKeyword = keyword.toLowerCase().trim();
-  const approvedMatch = approved.find((entry) => {
-    const needle = entry.keyword.toLowerCase().trim();
-    return entry.match === "contains"
-      ? normalizedKeyword.includes(needle)
-      : normalizedKeyword === needle;
-  });
-  if (approvedMatch) return approvedMatch.url;
-  const words = keyword.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-  let best = "/";
-  let bestScore = 0;
-  for (const candidate of candidates) {
-    const slug = candidate.toLowerCase().replace(/[^a-z0-9]+/g, " ");
-    const score = words.filter((w) => slug.includes(w)).length;
-    if (score > bestScore) {
-      best = candidate;
-      bestScore = score;
-    }
-  }
-  return best;
 }
 
 /** Populate the previously-empty Keyword Cannibalization Ledger: group keywords
