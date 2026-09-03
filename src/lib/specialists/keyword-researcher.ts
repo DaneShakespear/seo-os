@@ -25,6 +25,7 @@ import { runMarketingBrainScript } from "@/lib/marketing-brain/scripts";
 import { extractSignals } from "./_lib/fetch-signals";
 import { inferBusinessType } from "./_lib/business-type";
 import { writeArtifact } from "./_lib/artifact";
+import { isExcludedKeyword, type KeywordRule } from "./_lib/keyword-rules";
 import { applyStructuredOutput, sidecarRef } from "./_lib/structured-output";
 import { updateCanonicalNote } from "@/lib/brain/canonical-writer";
 
@@ -213,21 +214,27 @@ const keywordResearcher: Specialist<Input> = {
       new Set(signals.internalLinkSamples.filter((p) => p && p !== "/")),
     );
     const approvedMap = loadApprovedKeywordMap(ctx.clientSlug);
+    const eligibleVerifiedRows = verifiedRows.filter(
+      (keyword) => !isExcludedKeyword(keyword.keyword, approvedMap.exclusions),
+    );
     const assignments =
-      verifiedRows.length > 0
-        ? verifiedRows.map((keyword) => ({
+      eligibleVerifiedRows.length > 0
+        ? eligibleVerifiedRows.map((keyword) => ({
             keyword: keyword.keyword,
             volume: keyword.search_volume,
             intent: keyword.intent ?? "informational",
             url:
               normalizeOwnedUrl(keyword.our_url, manifest.site_under_audit) ??
-              assignKeywordUrl(keyword.keyword, candidateUrls, approvedMap),
+              assignKeywordUrl(keyword.keyword, candidateUrls, approvedMap.mappings),
           }))
-        : data?.top_keywords.slice(0, 25).map((keyword) => ({
+        : data?.top_keywords
+          .slice(0, 25)
+          .filter((keyword) => !isExcludedKeyword(keyword.keyword, approvedMap.exclusions))
+          .map((keyword) => ({
             keyword: keyword.keyword,
             volume: keyword.volume,
             intent: keyword.intent ?? "informational",
-            url: assignKeywordUrl(keyword.keyword, candidateUrls, approvedMap),
+            url: assignKeywordUrl(keyword.keyword, candidateUrls, approvedMap.mappings),
           })) ?? [];
     const keywordRows = assignments.map(
       (a) => `| ${escapeTable(a.keyword)} | ${a.url} | ${a.volume} | ${a.intent} | ${provenance} |`,
@@ -539,15 +546,20 @@ function loadVerifiedKeywordRows(clientSlug: string): VerifiedKeywordRow[] {
   }
 }
 
-function loadApprovedKeywordMap(
-  clientSlug: string,
-): Array<{ keyword: string; url: string; match?: "exact" | "contains" }> {
+type ApprovedKeywordMap = {
+  mappings: Array<KeywordRule & { url: string }>;
+  exclusions: KeywordRule[];
+};
+
+function loadApprovedKeywordMap(clientSlug: string): ApprovedKeywordMap {
   const file = path.join(vaultRoot(clientSlug), ".raw", "approved-keyword-url-map.json");
-  if (!fs.existsSync(file)) return [];
+  if (!fs.existsSync(file)) return { mappings: [], exclusions: [] };
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as { mappings?: unknown[] };
-    if (!Array.isArray(parsed.mappings)) return [];
-    return parsed.mappings
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as {
+      mappings?: unknown[];
+      exclusions?: unknown[];
+    };
+    const mappings = (Array.isArray(parsed.mappings) ? parsed.mappings : [])
       .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
       .map((row) => ({
         keyword: String(row.keyword ?? "").trim(),
@@ -555,8 +567,16 @@ function loadApprovedKeywordMap(
         match: row.match === "contains" ? "contains" as const : "exact" as const,
       }))
       .filter((row) => row.keyword.length > 0 && row.url.startsWith("/"));
+    const exclusions = (Array.isArray(parsed.exclusions) ? parsed.exclusions : [])
+      .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+      .map((row) => ({
+        keyword: String(row.keyword ?? "").trim(),
+        match: row.match === "contains" ? "contains" as const : "exact" as const,
+      }))
+      .filter((row) => row.keyword.length > 0);
+    return { mappings, exclusions };
   } catch {
-    return [];
+    return { mappings: [], exclusions: [] };
   }
 }
 
