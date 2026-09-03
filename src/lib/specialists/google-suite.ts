@@ -227,10 +227,12 @@ const googleSuite: Specialist<Input> = {
         type: "bar",
         title: "LCP (ms)",
         ref: sidecarRef(today, "google-suite"),
-        data: [
-          { category: "mobile", count: Math.round(d.cwv.mobile.lcp_ms) },
-          { category: "desktop", count: Math.round(d.cwv.desktop.lcp_ms) },
-        ],
+        data: d.signals.some((signal) => signal.id === "crux-form-factor-unspecified")
+          ? [{ category: "CrUX aggregate", count: Math.round(d.cwv.mobile.lcp_ms) }]
+          : [
+              { category: "mobile", count: Math.round(d.cwv.mobile.lcp_ms) },
+              { category: "desktop", count: Math.round(d.cwv.desktop.lcp_ms) },
+            ],
       }),
     });
     if (data) {
@@ -255,7 +257,7 @@ const googleSuite: Specialist<Input> = {
         tags: ["audit", "google", "cwv", "claude-generated"],
         url,
         reportSubtitle: data
-          ? `mobile LCP ${Math.round(data.cwv.mobile.lcp_ms)}ms · desktop LCP ${Math.round(data.cwv.desktop.lcp_ms)}ms${data.lighthouse_score != null ? ` · Lighthouse ${data.lighthouse_score}/100` : ""}`
+          ? `${data.signals.some((signal) => signal.id === "crux-form-factor-unspecified") ? "aggregate CrUX" : "mobile"} LCP ${Math.round(data.cwv.mobile.lcp_ms)}ms${data.signals.some((signal) => signal.id === "crux-form-factor-unspecified") ? "" : ` · desktop LCP ${Math.round(data.cwv.desktop.lcp_ms)}ms`}${data.lighthouse_score != null ? ` · Lighthouse ${data.lighthouse_score}/100` : ""}`
           : undefined,
         ...(data ? { data } : {}),
         costUsd: result.costUsd ?? 0,

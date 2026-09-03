@@ -163,6 +163,7 @@ export async function runBrainReview(
     site: manifest.site_under_audit,
     business_type: manifest.business_type,
     declared_competitors: manifest.primary_competitors ?? [],
+    manifest_source_count: Object.keys(manifest.sources).length,
     notes: notes.map((n) => ({
       path: n.path,
       confidence: n.confidence,
