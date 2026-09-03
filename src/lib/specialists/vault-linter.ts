@@ -191,7 +191,11 @@ export async function lintVault(
   // Walk vault for the file-level rules. Skip `.raw/` per canonical
   // semantics — raw sources are immutable and not subject to wiki linting.
   const files = await collectFiles(root);
-  const notes = files.filter((f) => f.endsWith(".md"));
+  const notes = files.filter(
+    (file) =>
+      file.endsWith(".md") &&
+      !/^wiki\/deliverables\/\d{4}-\d{2}-\d{2}-vault-lint(?:\.[^.]+)?\.md$/i.test(file),
+  );
 
   // Build wikilink resolution indexes.
   const lowercaseFileSet = new Set(files.map((f) => f.toLowerCase()));
@@ -618,7 +622,7 @@ function renderLintMarkdown(report: LintReport): string {
     "",
     "- For `frontmatter-valid` failures, edit the note's YAML to match `src/lib/brain/types.ts::Frontmatter`.",
     "- For `dead-wikilink` warnings, either fix the link target or create the missing note.",
-    "- For `unresolved-placeholder-*` errors, run `rescaffoldClient(slug, …)` with the right slot values — the renderer now substitutes `{{tokens}}` in both file contents and filenames.",
+    "- For unresolved-placeholder errors, run `rescaffoldClient(slug, …)` with the right slot values; the renderer substitutes slot values in file contents and filenames.",
     "- For `manifest-location` warnings, hit any manifest-read API once — the migration helper auto-moves the file.",
   );
 

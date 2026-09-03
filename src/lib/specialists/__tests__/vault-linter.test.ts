@@ -56,6 +56,22 @@ test("lintVault returns clean for the clean-scaffolded fixture", async () => {
   assert.equal(report.score, 100);
 });
 
+test("lintVault does not lint its own dated report artifacts", async () => {
+  const { lintVault } = await import("../vault-linter.ts");
+  const slug = "self-report-vault";
+  const vault = cloneFixtureToTmp("clean-scaffolded", { tmpRoot, slug });
+  const reportDir = path.join(vault, "wiki", "deliverables");
+  await fsp.mkdir(reportDir, { recursive: true });
+  await fsp.writeFile(
+    path.join(reportDir, "2026-09-03-vault-lint.md"),
+    "This prior report mentions a literal {{token}} and [[Missing Example]].\n",
+    "utf8",
+  );
+
+  const report = await lintVault(slug);
+  assert.equal(report.clean, true, JSON.stringify(report.findings, null, 2));
+});
+
 test("lintVault surfaces every rule from a mutated clean-scaffolded fixture", async () => {
   const { lintVault } = await import("../vault-linter.ts");
   const slug = "corrupt-vault";
