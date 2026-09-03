@@ -65,6 +65,14 @@ export async function GET() {
     : { ok: false, config_path: schedulePath };
   if (!scheduled) coreHealthy = false;
 
+  const updateStatusPath =
+    process.env.SEO_OFFICE_UPDATE_STATUS ??
+    "/home/dane/.local/state/seo-office/update-status.json";
+  checks.updates = readJsonFile(updateStatusPath) ?? {
+    state: "not_checked",
+    message: "The release monitor has not completed its first check.",
+  };
+
   let latestRuns: unknown[] = [];
   try {
     latestRuns = getDb()
@@ -106,6 +114,14 @@ function readReview(slug: string): ReviewSummary | null {
   try {
     const file = path.join(vaultsRoot(), slug, "wiki", "meta", "brain-review.json");
     return JSON.parse(fs.readFileSync(file, "utf8")) as ReviewSummary;
+  } catch {
+    return null;
+  }
+}
+
+function readJsonFile(file: string): unknown | null {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {
     return null;
   }
