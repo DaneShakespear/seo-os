@@ -393,8 +393,7 @@ async function runCompetitorMarketingBrainBridge(
       args: [
         "--site",
         siteUrl,
-        "--seed-keywords",
-        seedQueries.join(", "),
+        ...seedQueries.flatMap((query) => ["--seed-keyword", query]),
         "--top",
         "8",
         "--depth",

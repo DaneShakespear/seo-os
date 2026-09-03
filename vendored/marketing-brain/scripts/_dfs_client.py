@@ -179,7 +179,16 @@ def call(
             "response_sha256": hashlib.sha256(response_text.encode("utf-8")).hexdigest(),
             "status_code": data.get("status_code"),
             "status_message": data.get("status_message"),
-            "cost_usd": float(data.get("cost") or 0.0),
+            "cost_usd": _reported_cost(data),
+            "task_statuses": [
+                {
+                    "id": task.get("id"),
+                    "status_code": task.get("status_code"),
+                    "status_message": task.get("status_message"),
+                    "cost_usd": float(task.get("cost") or 0.0),
+                }
+                for task in (data.get("tasks") or [])
+            ],
         }
         write_private_text(
             save_path.with_suffix(save_path.suffix + ".meta.json"),
@@ -193,9 +202,19 @@ def call(
             f"[{label}] DataForSEO API status {api_status}: {data.get('status_message')}"
         )
 
+    failed_task = next(
+        (task for task in (data.get("tasks") or []) if int(task.get("status_code") or 0) >= 40000),
+        None,
+    )
+    if failed_task is not None:
+        raise DataForSEOError(
+            f"[{label}] DataForSEO task status {failed_task.get('status_code')}: "
+            f"{failed_task.get('status_message')}"
+        )
+
     # Cost accounting. DataForSEO reports cost on the top-level response; some
     # endpoints also report per-task. We trust the top-level number.
-    cost = float(data.get("cost") or 0.0)
+    cost = _reported_cost(data)
     if cost > _per_call_cap:
         # We add the cost to total before raising so the audit reflects spend.
         _total_cost += cost
@@ -235,6 +254,13 @@ def _read_credentials() -> tuple[str, str]:
         )
         sys.exit(2)
     return login, password
+
+
+def _reported_cost(data: dict[str, Any]) -> float:
+    top_level = float(data.get("cost") or 0.0)
+    if top_level > 0:
+        return top_level
+    return sum(float(task.get("cost") or 0.0) for task in (data.get("tasks") or []))
 
 
 def write_private_text(path: Path | str, text: str) -> None:

@@ -67,6 +67,18 @@ export async function post<T = unknown>(
   if (json.status_code >= 40000) {
     throw new Error(`DataForSEO ${path} → ${json.status_code}: ${json.status_message}`);
   }
+  const failedTask = json.tasks?.find((task) => task.status_code >= 40000);
+  if (failedTask) {
+    throw new Error(
+      `DataForSEO ${path} task → ${failedTask.status_code}: ${failedTask.status_message}`,
+    );
+  }
+  if (!json.cost) {
+    json.cost = json.tasks?.reduce(
+      (sum, task) => sum + Number((task as { cost?: number }).cost ?? 0),
+      0,
+    ) ?? 0;
+  }
   return json;
 }
 

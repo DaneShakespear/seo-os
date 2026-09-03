@@ -50,6 +50,29 @@ class DataForSEOReceiptTest(unittest.TestCase):
             )
             self.assertNotIn("test-password", json.dumps(receipt))
 
+    def test_failed_task_status_raises(self) -> None:
+        response = {
+            "status_code": 20000,
+            "status_message": "Ok.",
+            "cost": 0,
+            "tasks": [{
+                "id": "task-1",
+                "status_code": 40501,
+                "status_message": "Invalid Field: location_name",
+                "cost": 0,
+            }],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            raw_path = Path(tmp) / "serp.json"
+            with patch.dict(os.environ, {
+                "DATAFORSEO_LOGIN": "test-login",
+                "DATAFORSEO_PASSWORD": "test-password",
+            }), patch.object(dfs, "_post_with_retry", return_value=response):
+                with self.assertRaisesRegex(dfs.DataForSEOError, "40501"):
+                    dfs.call("/v3/test", [{"location_name": "invalid"}], "test", raw_path)
+            self.assertTrue(raw_path.exists())
+            self.assertTrue(raw_path.with_suffix(".json.meta.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

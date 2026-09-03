@@ -178,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--site", required=True, help="Site URL (e.g. https://example.com)")
     parser.add_argument("--vault", required=True, help="Vault root directory")
     parser.add_argument("--seed-keywords", default="", help="Comma-separated seeds (optional)")
+    parser.add_argument("--seed-keyword", action="append", default=[], help="One exact seed; repeat to preserve commas")
     parser.add_argument("--top", type=int, default=10, help="Number of competitors to return")
     parser.add_argument("--location", type=int, default=2840, help="DataForSEO location code (default 2840 = United States)")
     parser.add_argument("--location-name", default="", help="Exact DataForSEO location name; overrides --location")
@@ -199,7 +200,9 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = Path(args.vault).expanduser().resolve() / ".raw" / "sources" / "dataforseo"
 
     # Resolve seeds.
-    if args.seed_keywords.strip():
+    if args.seed_keyword:
+        seeds = [s.strip() for s in args.seed_keyword if s.strip()]
+    elif args.seed_keywords.strip():
         seeds = [s.strip() for s in args.seed_keywords.split(",") if s.strip()]
     else:
         print(f"[find_competitors] No --seed-keywords given; fetching {args.site} for heuristic extraction...", file=sys.stderr)

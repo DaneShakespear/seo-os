@@ -26,12 +26,22 @@ export function resolveLocale(
 ): ResolvedLocale {
   return {
     location_name:
-      override?.location_name?.trim() ||
-      manifest.locale?.location_name?.trim() ||
-      "United States",
+      normalizeLocationName(
+        override?.location_name?.trim() ||
+          manifest.locale?.location_name?.trim() ||
+          "United States",
+      ),
     language_name:
       override?.language_name?.trim() ||
       manifest.locale?.language_name?.trim() ||
       "English",
   };
+}
+
+function normalizeLocationName(value: string): string {
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(",");
 }
