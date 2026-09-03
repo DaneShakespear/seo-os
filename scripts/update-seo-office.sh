@@ -68,6 +68,10 @@ corepack pnpm typecheck
 SEO_OFFICE_PYTHON="${SEO_OFFICE_PYTHON:-python3}" corepack pnpm test
 corepack pnpm build
 
+if [[ -x "$SOURCE_DIR/scripts/backup-seo-office.sh" ]]; then
+  "$SOURCE_DIR/scripts/backup-seo-office.sh"
+fi
+
 release_id="$(git rev-parse --short=12 HEAD)"
 release_dir="$RELEASE_ROOT/$release_id"
 mkdir -p "$release_dir"
