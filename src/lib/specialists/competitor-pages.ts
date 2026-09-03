@@ -50,6 +50,7 @@ const InputSchema = z.object({
   competitors: z.array(z.string()).max(3).optional(),
   category: z.string().optional(),
   location_code: z.number().int().positive().optional(),
+  labs_location_code: z.number().int().positive().optional(),
   location_name: z.string().optional(),
   language_name: z.string().optional(),
 });
@@ -84,7 +85,8 @@ const spec: Specialist<Input> = {
       manifest.niche?.trim() ||
       (businessType && businessType !== "unknown" ? businessType : "");
     const competitors = input.competitors?.slice(0, 3) ?? [];
-    const { location_code, location_name, language_name } = resolveLocale(manifest, input);
+    const { location_code, labs_location_code, location_name, language_name } =
+      resolveLocale(manifest, input);
 
     // Guard: never run SERP queries with an unresolved category. Without this,
     // a minimal-intake client (business_type still "unknown") produced literal
@@ -151,6 +153,7 @@ const spec: Specialist<Input> = {
       manifest.site_under_audit,
       queries,
       location_code,
+      labs_location_code,
       location_name,
       language_name,
     );
@@ -382,6 +385,7 @@ async function runCompetitorMarketingBrainBridge(
   siteUrl: string,
   seedQueries: string[],
   locationCode: number | undefined,
+  labsLocationCode: number | undefined,
   locationName: string,
   languageName: string,
 ): Promise<{ completed: boolean; artifactPaths: string[]; message?: string }> {
@@ -429,8 +433,8 @@ async function runCompetitorMarketingBrainBridge(
         "250",
         "--max-pages-per-comp",
         "1",
-        ...(locationCode
-          ? ["--location", String(locationCode)]
+        ...(labsLocationCode
+          ? ["--location", String(labsLocationCode)]
           : ["--location-name", locationName]),
         "--language",
         languageCode(languageName),

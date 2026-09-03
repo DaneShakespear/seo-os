@@ -12,12 +12,14 @@ import type { ClientManifest } from "@/lib/brain/types";
 
 export interface ResolvedLocale {
   location_code?: number;
+  labs_location_code?: number;
   location_name: string;
   language_name: string;
 }
 
 export interface LocaleOverride {
   location_code?: number;
+  labs_location_code?: number;
   location_name?: string;
   language_name?: string;
 }
@@ -28,6 +30,8 @@ export function resolveLocale(
 ): ResolvedLocale {
   return {
     location_code: override?.location_code ?? manifest.locale?.location_code,
+    labs_location_code:
+      override?.labs_location_code ?? manifest.locale?.labs_location_code,
     location_name:
       normalizeLocationName(
         override?.location_name?.trim() ||

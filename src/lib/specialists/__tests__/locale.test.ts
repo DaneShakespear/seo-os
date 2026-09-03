@@ -8,6 +8,7 @@ test("normalizes DataForSEO city location names", () => {
   const manifest = {
     locale: {
       location_code: 1022639,
+      labs_location_code: 2840,
       location_name: "Las Vegas, Nevada, United States",
       language_name: "English",
     },
@@ -17,4 +18,5 @@ test("normalizes DataForSEO city location names", () => {
     "Las Vegas,Nevada,United States",
   );
   assert.equal(resolveLocale(manifest).location_code, 1022639);
+  assert.equal(resolveLocale(manifest).labs_location_code, 2840);
 });
