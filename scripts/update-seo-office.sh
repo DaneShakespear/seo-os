@@ -66,7 +66,6 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm lint
 corepack pnpm typecheck
 SEO_OFFICE_PYTHON="${SEO_OFFICE_PYTHON:-python3}" corepack pnpm test
-corepack pnpm build
 
 if [[ -x "$SOURCE_DIR/scripts/backup-seo-office.sh" ]]; then
   "$SOURCE_DIR/scripts/backup-seo-office.sh"
@@ -79,7 +78,12 @@ rsync -a --delete \
   --exclude .git \
   --exclude .env.local \
   --exclude .seo-office \
+  --exclude .next \
+  --exclude node_modules \
   "$worktree/" "$release_dir/"
+cd "$release_dir"
+corepack pnpm install --frozen-lockfile
+corepack pnpm build
 printf '%s\n' "$candidate" > "$release_dir/.upstream-sha"
 printf '%s\n' "$latest_tag" > "$release_dir/.upstream-release"
 printf '%s\n' "$release_id" > "$release_dir/.release-id"
