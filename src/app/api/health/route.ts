@@ -92,7 +92,10 @@ export async function GET() {
     {
       ok: coreHealthy,
       service: "seo-office",
-      release: process.env.SEO_OFFICE_RELEASE ?? "unknown",
+      release:
+        process.env.SEO_OFFICE_RELEASE ??
+        readTextFile(path.join(process.cwd(), ".release-id")) ??
+        "unknown",
       checked_at: new Date().toISOString(),
       checks,
       latest_runs: latestRuns,
@@ -122,6 +125,14 @@ function readReview(slug: string): ReviewSummary | null {
 function readJsonFile(file: string): unknown | null {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function readTextFile(file: string): string | null {
+  try {
+    return fs.readFileSync(file, "utf8").trim() || null;
   } catch {
     return null;
   }

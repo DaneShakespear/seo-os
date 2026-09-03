@@ -82,6 +82,7 @@ rsync -a --delete \
   "$worktree/" "$release_dir/"
 printf '%s\n' "$candidate" > "$release_dir/.upstream-sha"
 printf '%s\n' "$latest_tag" > "$release_dir/.upstream-release"
+printf '%s\n' "$release_id" > "$release_dir/.release-id"
 ln -sfn "$release_dir" "$CURRENT_LINK.next"
 mv -Tf "$CURRENT_LINK.next" "$CURRENT_LINK"
 write_status "promoted" "Tagged release passed all gates and was promoted." "$latest_tag@$candidate"
