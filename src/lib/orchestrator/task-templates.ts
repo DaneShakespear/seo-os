@@ -359,22 +359,20 @@ export const BUILD_BRAIN_SWEEP: TaskTemplate = {
 
     /* Phase 3 — Discovery */
     {
-      title: "Keyword opportunity scan",
-      goal: "Read the brain first, then build or refresh the keyword-to-URL opportunity map. Use live DataForSEO evidence when available; otherwise mark the result advisory.",
-      specialist_id: "keyword-researcher",
-      phase: "discovery",
-      // [3] not [13]: these discovery specialists read only page signals,
-      // the manifest, and the vault — never the diagnostic audit artifacts —
-      // so they start in the diagnostic wave instead of waiting for it. The
-      // discovery-gate (28) still depends on the diagnostic-gate, so synthesis
-      // remains correctly ordered after diagnostics complete.
-      blocked_on_indices: [3],
-    },
-    {
       title: "Competitor pages",
       goal: "Read the brain first, then generate comparison and alternatives-page opportunities only where the existing brain does not already cover them.",
       specialist_id: "competitor-pages",
       phase: "discovery",
+      blocked_on_indices: [3],
+    },
+    {
+      title: "Keyword opportunity scan",
+      goal: "Read the brain first, then build or refresh the keyword-to-URL opportunity map. Use live DataForSEO evidence when available; otherwise mark the result advisory.",
+      specialist_id: "keyword-researcher",
+      phase: "discovery",
+      // Competitor discovery retains the locale-bounded DataForSEO exports
+      // that the keyword workbook consumes. The prior order forced model
+      // estimates into the map before those source files existed.
       blocked_on_indices: [14],
     },
     {
@@ -496,7 +494,7 @@ export const BUILD_BRAIN_SWEEP: TaskTemplate = {
       goal: "Read every specialist artifact and the current brain first. Produce a deep BEAST plan with executive summary, top opportunities, risks, 30/60/90 plan, first action, acceptance criteria, rollback notes, and source citations.",
       specialist_id: "beast-planner",
       phase: "synthesis",
-      blocked_on_indices: [14, 21, 26, 29, 30],
+      blocked_on_indices: [15, 21, 26, 29, 30],
     },
     {
       title: "Synthesis readiness gate",

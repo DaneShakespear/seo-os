@@ -100,7 +100,6 @@ test("Max-parallelism: audit-independent specialists start at the intake gate", 
   // These read only page signals / manifest / vault — never the diagnostic
   // audits — so they block on the intake gate (index 3), not diagnostic (13).
   const startEarly = [
-    "keyword-researcher",
     "backlink-analyst",
     "image-auditor",
     "brand-strategist",
@@ -118,6 +117,13 @@ test("Max-parallelism: audit-independent specialists start at the intake gate", 
       `${id} should start in the diagnostic wave (blocked on intake gate 3)`,
     );
   }
+  const competitorIndex = BUILD_BRAIN_SWEEP.children.findIndex(
+    (child) => child.specialist_id === "competitor-pages",
+  );
+  const keyword = BUILD_BRAIN_SWEEP.children.find(
+    (child) => child.specialist_id === "keyword-researcher",
+  );
+  assert.deepEqual(keyword?.blocked_on_indices, [competitorIndex]);
 });
 
 test("R8 Deep Brain sweep has explicit lint gates before downstream phases", async () => {
