@@ -43,6 +43,7 @@ import { writeArtifact } from "./_lib/artifact";
 
 const MAX_NOTE_CHARS = 1800; // per-note excerpt cap — bounds the token budget
 const MAX_EVIDENCE_ROWS = 40;
+const MAX_CITED_SOURCES = 8;
 
 const SYSTEM_PROMPT = `You are the Brain Reviewer inside SEO Office — a meticulous, skeptical editor whose only job is to find what is WRONG with a marketing brain before a human trusts it.
 
@@ -105,6 +106,25 @@ async function loadCanonicalNotes(clientSlug: string): Promise<LoadedNote[]> {
   return loaded;
 }
 
+async function loadCitedAuditSources(
+  clientSlug: string,
+  notes: LoadedNote[],
+): Promise<Array<{ path: string; content: string }>> {
+  const paths = new Set<string>();
+  for (const note of notes) {
+    for (const match of note.excerpt.matchAll(/(?:wiki\/audits\/)?(\d{4}-\d{2}-\d{2}-[A-Za-z0-9._-]+\.md)/g)) {
+      const name = match[1];
+      if (name && !/brain-review/i.test(name)) paths.add(`wiki/audits/${name}`);
+    }
+  }
+  const loaded: Array<{ path: string; content: string }> = [];
+  for (const sourcePath of [...paths].slice(0, MAX_CITED_SOURCES)) {
+    const source = await readNote(clientSlug, sourcePath).catch(() => null);
+    if (source) loaded.push({ path: sourcePath, content: source.body.slice(0, MAX_NOTE_CHARS) });
+  }
+  return loaded;
+}
+
 export interface RunBrainReviewResult {
   summary: BrainReviewSummary;
   /** Vault-relative path of the human markdown report. */
@@ -132,7 +152,12 @@ export async function runBrainReview(
 
   emit("progress", "Reading the brain…", { progress: 0.15 });
   const notes = await loadCanonicalNotes(clientSlug);
-  const ledger = await readEvidenceLedger(clientSlug).catch(() => []);
+  const citedSources = await loadCitedAuditSources(clientSlug, notes);
+  const ledger = (await readEvidenceLedger(clientSlug).catch(() => [])).filter(
+    (entry) =>
+      entry.specialist_id !== "brain-reviewer" &&
+      !entry.source_paths.some((source) => /brain-review/i.test(source)),
+  );
 
   const payload = {
     site: manifest.site_under_audit,
@@ -144,6 +169,7 @@ export async function runBrainReview(
       business_type: n.businessType,
       content: n.excerpt + (n.truncated ? "\n…[truncated]" : ""),
     })),
+    cited_sources: citedSources,
     evidence_ledger: ledger.slice(0, MAX_EVIDENCE_ROWS).map((e) => ({
       claim: e.claim,
       provenance: e.provenance,
