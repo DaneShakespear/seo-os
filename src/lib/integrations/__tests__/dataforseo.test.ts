@@ -60,3 +60,40 @@ test("uses per-task cost when the top-level response omits cost", async () => {
   const result = await post("/v3/test", {});
   assert.equal(result.cost, 0.0042);
 });
+
+test("retries a transient internal task error and returns the clean result", async () => {
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return new Response(
+      JSON.stringify(calls === 1 ? {
+        status_code: 20000,
+        status_message: "Ok.",
+        cost: 0,
+        tasks: [{
+          id: "task-1",
+          status_code: 40101,
+          status_message: "Internal SE Server Error.",
+          cost: 0,
+          result: null,
+        }],
+      } : {
+        status_code: 20000,
+        status_message: "Ok.",
+        cost: 0.002,
+        tasks: [{
+          id: "task-2",
+          status_code: 20000,
+          status_message: "Ok.",
+          cost: 0.002,
+          result: [],
+        }],
+      }),
+      { status: 200 },
+    );
+  };
+  const { post } = await import("@/lib/integrations/dataforseo.ts");
+  const result = await post("/v3/test", {});
+  assert.equal(calls, 2);
+  assert.equal(result.tasks[0]?.status_code, 20000);
+});
