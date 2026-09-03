@@ -107,14 +107,22 @@ test("writeHot replaces stale volatile status facts and same-title threads", asy
 
   await writeHot(slug, {
     lastUpdated: "2026-09-02",
-    newFacts: ["Vault lint: 13 errors, 4 warnings."],
+    newFacts: [
+      "Vault lint: 13 errors, 4 warnings.",
+      "Backlink audit ran via stale-provider.",
+      "10 referring domains reported by stale-provider.",
+    ],
     newChange: "old lint",
     newThread: { title: "Vault lint findings", rationale: "old report" },
     statusNote: "old",
   });
   await writeHot(slug, {
     lastUpdated: "2026-09-03",
-    newFacts: ["Vault lint: 0 errors, 0 warnings."],
+    newFacts: [
+      "Vault lint: 0 errors, 0 warnings.",
+      "Backlink audit ran via dataforseo.",
+      "25 referring domains reported by dataforseo.",
+    ],
     newChange: "current lint",
     newThread: { title: "Vault lint findings", rationale: "current report" },
     statusNote: "current",
@@ -130,4 +138,21 @@ test("writeHot replaces stale volatile status facts and same-title threads", asy
     hot.activeThreads.filter((thread) => thread.title === "Vault lint findings").length,
     1,
   );
+  assert.deepEqual(
+    hot.keyRecentFacts.filter((fact) => fact.startsWith("Backlink audit ran via ")),
+    ["Backlink audit ran via dataforseo."],
+  );
+  assert.deepEqual(
+    hot.keyRecentFacts.filter((fact) => /referring domains reported by /.test(fact)),
+    ["25 referring domains reported by dataforseo."],
+  );
+  assert.deepEqual(hot.recentChanges, ["current lint", "old lint"]);
+
+  await writeHot(slug, {
+    lastUpdated: "2026-09-03",
+    newFacts: ["Vault lint: 0 errors, 0 warnings."],
+    newChange: "current lint",
+    statusNote: "current",
+  });
+  assert.deepEqual((await readHot(slug))?.recentChanges, ["current lint", "old lint"]);
 });

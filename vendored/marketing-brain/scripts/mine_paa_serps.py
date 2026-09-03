@@ -186,6 +186,10 @@ def _write_digest(path: Path, paa_data: list[dict[str, Any]], related_data: list
     lines.append("")
     lines.append("## People Also Ask — by topic")
     lines.append("")
+    if not question_counter:
+        lines.append("- No People Also Ask questions were returned for the sampled keywords in this run.")
+        lines.append("- This is a zero-result from the selected SERPs, not evidence that customers ask no questions.")
+        lines.append("")
     for bucket, items in bucket_to_questions.items():
         lines.append(f"### {bucket}")
         lines.append("")
@@ -197,6 +201,10 @@ def _write_digest(path: Path, paa_data: list[dict[str, Any]], related_data: list
 
     lines.append("## Related Searches — top 100")
     lines.append("")
+    if not related_counter:
+        lines.append("- No related-search terms were returned for the sampled keywords in this run.")
+        lines.append("- Keep this source low-confidence and use Search Console queries or a later SERP sample before deriving question content.")
+        lines.append("")
     for q, count in related_counter.most_common(100):
         seeds = sorted(related_to_keywords[q])
         seed_preview = ", ".join(seeds[:3]) + (f" +{len(seeds)-3}" if len(seeds) > 3 else "")
